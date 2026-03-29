@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Health Risk Engine</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  transition: all 0.3s ease;
+}
+
+.dark {
+  background: #0f172a;
+  color: white;
+}
+
+.light {
+  background: #f8fafc;
+  color: black;
+}
+
+.card-custom {
+  border-radius: 20px;
+  padding: 20px;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(10px);
+}
+
+input, select {
+  border-radius: 10px !important;
+}
+
+.big-title {
+  text-align: center;
+  font-size: 42px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+
+<body class="dark">
+
+<div class="container py-4">
+
+<!-- 🔥 BIG CENTER TITLE -->
+<div class="big-title">
+  AI-Based Respiratory Health Risk Prediction System
+</div>
+
+<p class="text-center text-muted mb-4">
+  Project by: Arooshi Sethi | 23BBT0031
+</p>
+
+<!-- HEADER -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+  <h4 class="fw-bold">Risk Calculator</h4>
+
+  <div class="d-flex gap-2">
+    <a href="/dashboard" class="btn btn-info">🧠 Explainability</a>
+    <button class="btn btn-outline-light" onclick="toggleMode()">Toggle Mode</button>
+  </div>
+
+</div>
+
+<div class="row g-4">
+
+<!-- EXTERNAL -->
+<div class="col-md-6">
+<div class="card-custom">
+
+<h4>🌫 External Factors</h4>
+
+<label>PM2.5 (µg/m³)</label>
+<input id="pm25" class="form-control mb-2">
+
+<label>PM10 (µg/m³)</label>
+<input id="pm10" class="form-control mb-2">
+
+<label>NO2 (µg/m³)</label>
+<input id="no2" class="form-control mb-2">
+
+<label>SO2 (µg/m³)</label>
+<input id="so2" class="form-control mb-2">
+
+<label>O3 (µg/m³)</label>
+<input id="o3" class="form-control mb-2">
+
+<label>Temperature (°C)</label>
+<input id="temperature" class="form-control mb-2">
+
+<label>Humidity (%)</label>
+<input id="humidity" class="form-control mb-2">
+
+<label>Wind Speed (m/s)</label>
+<input id="windspeed" class="form-control mb-2">
+
+</div>
+</div>
+
+<!-- INTERNAL -->
+<div class="col-md-6">
+<div class="card-custom">
+
+<h4>🧬 Internal Factors</h4>
+
+<label>Age</label>
+<input id="age" class="form-control mb-2">
+
+<!-- 🔥 NEW GENDER -->
+<label>Gender</label>
+<select id="gender" class="form-select mb-2">
+<option value="male">Male</option>
+<option value="female">Female</option>
+</select>
+
+<label>Smoking</label>
+<select id="smoker" class="form-select mb-2">
+<option value="none">None</option>
+<option value="light">Light</option>
+<option value="heavy">Heavy</option>
+</select>
+
+<label>Income</label>
+<select id="income" class="form-select mb-2">
+<option value="low">Low</option>
+<option value="medium">Medium</option>
+<option value="high">High</option>
+</select>
+
+<label>Indoor Pollution</label>
+<select id="indoor_pollution" class="form-select mb-2">
+<option value="false">Low</option>
+<option value="true">High</option>
+</select>
+
+<label>Family History</label>
+<select id="family_history" class="form-select mb-2">
+<option value="false">No</option>
+<option value="true">Yes</option>
+</select>
+
+</div>
+</div>
+
+</div>
+
+<!-- RESULTS -->
+<div class="card-custom mt-4">
+<h4>📊 Live Risk Output</h4>
+
+<div id="cards" class="row g-3 mt-2"></div>
+
+<canvas id="riskChart"></canvas>
+</div>
+
+<!-- BUTTON -->
+<div class="mt-3">
+<button class="btn btn-danger" onclick="clearAll()">Clear All</button>
+</div>
+
+</div>
+
+<script>
+let chart;
+
+function renderCards(data) {
+  let html = "";
+
+  for (let key in data) {
+    let val = data[key];
+    let color = val < 30 ? "success" : val < 60 ? "warning" : "danger";
+
+    html += `
+      <div class="col-md-4">
+        <div class="p-3 rounded bg-${color} text-white shadow">
+          <h6>${key.toUpperCase()}</h6>
+          <h3>${val}%</h3>
+        </div>
+      </div>
+    `;
+  }
+
+  cards.innerHTML = html;
+}
+
+function createChart(data) {
+  if (chart) chart.destroy();
+
+  chart = new Chart(riskChart, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(data),
+      datasets: [
+        {
+          label: 'Average',
+          data: [5,5,8,1,2],
+          backgroundColor: '#6c757d'
+        },
+        {
+          label: 'You',
+          data: Object.values(data),
+          backgroundColor: '#4f8cff'
+        }
+      ]
+    }
+  });
+}
+
+function predict() {
+  const data = {
+    pm25: pm25.value || 0,
+    pm10: pm10.value || 0,
+    no2: no2.value || 0,
+    so2: so2.value || 0,
+    o3: o3.value || 0,
+    temperature: temperature.value || 0,
+    humidity: humidity.value || 0,
+    windspeed: windspeed.value || 0,
+    age: age.value || 0,
+    gender: gender.value,
+    smoker: smoker.value,
+    income: income.value,
+    indoor_pollution: indoor_pollution.value === "true",
+    family_history: family_history.value === "true"
+  };
+
+  fetch("/predict", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data)
+  })
+  .then(r => r.json())
+  .then(result => {
+    renderCards(result);
+    createChart(result);
+  });
+}
+
+function clearAll() {
+  document.querySelectorAll("input").forEach(el => el.value = "");
+  cards.innerHTML = "";
+  if (chart) chart.destroy();
+}
+
+function toggleMode() {
+  document.body.classList.toggle("dark");
+  document.body.classList.toggle("light");
+}
+
+document.querySelectorAll("input, select").forEach(el => {
+  el.addEventListener("input", predict);
+});
+
+window.onload = predict;
+</script>
+
+</body>
+</html>

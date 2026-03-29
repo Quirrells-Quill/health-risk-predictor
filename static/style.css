@@ -1,0 +1,22 @@
+body {
+  background: #f6f8fb;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.hero-card {
+  background: linear-gradient(135deg, #1f4e79, #2d6cdf);
+  color: white;
+}
+
+.card {
+  border: none;
+}
+
+.btn-primary {
+  background: #1f4e79;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: #163a5c;
+}
