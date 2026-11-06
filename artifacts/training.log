@@ -1,14 +1,14 @@
-2026-03-29T05:13:07.678376 | Loading dataset
-2026-03-29T05:13:07.712682 | Initializing base models
-2026-03-29T05:13:07.714681 | Training XGBoost
-2026-03-29T05:13:07.917007 | Training RandomForest
-2026-03-29T05:13:08.120173 | Training Ridge
-2026-03-29T05:13:08.324986 | Training KNN
-2026-03-29T05:13:24.292828 | Model training complete
-2026-03-29T05:13:28.024082 | bronchitis_risk: R2=0.989
-2026-03-29T05:13:28.026652 | pneumonia_risk: R2=0.992
-2026-03-29T05:13:28.028886 | asthma_risk: R2=0.990
-2026-03-29T05:13:28.030905 | lung_cancer_risk: R2=0.990
-2026-03-29T05:13:28.032891 | copd_risk: R2=0.992
-2026-03-29T05:13:28.033939 | Generating plots
-2026-03-29T05:13:30.614796 | Training finished successfully
+2026-11-06T11:54:38.358132 | Loading dataset
+2026-11-06T11:54:38.404485 | Initializing base models
+2026-11-06T11:54:38.406486 | Training XGBoost
+2026-11-06T11:54:38.608856 | Training RandomForest
+2026-11-06T11:54:38.810239 | Training Ridge
+2026-11-06T11:54:39.012265 | Training KNN
+2026-11-06T11:55:05.779666 | Model training complete
+2026-11-06T11:55:12.317580 | bronchitis_risk: R2=0.990
+2026-11-06T11:55:12.320577 | pneumonia_risk: R2=0.992
+2026-11-06T11:55:12.322576 | asthma_risk: R2=0.992
+2026-11-06T11:55:12.324578 | lung_cancer_risk: R2=0.989
+2026-11-06T11:55:12.326578 | copd_risk: R2=0.992
+2026-11-06T11:55:12.326578 | Generating plots
+2026-11-06T11:55:15.235253 | Training finished successfully

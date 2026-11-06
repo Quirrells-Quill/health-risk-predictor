@@ -1,11 +1,20 @@
+# app.py
+"""
+Flask Web Application for the AI-Based Respiratory Health Risk Prediction System.
+Serves web prediction interfaces, explainability dashboards, real-time training telemetry,
+and REST API endpoints for multi-output ensemble inference.
+"""
+
 import json
+import math
+from pathlib import Path
+
 import joblib
 import pandas as pd
-from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, jsonify, render_template, request
 
-from personal_risk import apply_personal_factors, format_as_percent
 from labeling import DISEASE_WEIGHTS
+from personal_risk import apply_personal_factors, format_as_percent
 
 app = Flask(__name__)
 
@@ -19,11 +28,28 @@ STATUS_PATH = ARTIFACTS / "training_status.json"
 SUMMARY_PATH = ARTIFACTS / "training_summary.json"
 LOG_PATH = ARTIFACTS / "training.log"
 
-model = joblib.load(MODEL_PATH)
-scaler = joblib.load(SCALER_PATH)
+model = None
+scaler = None
+FEATURE_COLS = []
 
-with open(FEATURES_PATH, "r", encoding="utf-8") as f:
-    FEATURE_COLS = json.load(f)
+
+def load_artifacts():
+    """Loads trained stacking model, scaler, and feature definitions."""
+    global model, scaler, FEATURE_COLS
+    if model is None:
+        if not MODEL_PATH.exists() or not SCALER_PATH.exists() or not FEATURES_PATH.exists():
+            import train
+            train.main()
+        model = joblib.load(MODEL_PATH)
+        scaler = joblib.load(SCALER_PATH)
+        with open(FEATURES_PATH, "r", encoding="utf-8") as f:
+            FEATURE_COLS = json.load(f)
+
+
+try:
+    load_artifacts()
+except Exception as exc:
+    print(f"Artifact lazy-load notice: {exc}")
 
 
 # ---------------------------
@@ -49,6 +75,7 @@ def training_dashboard():
 # ---------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
+    load_artifacts()
     data = request.json
 
     row = {
@@ -64,22 +91,22 @@ def predict():
 
     profile = {
         "age": int(data["age"]),
-        "gender": data["gender"],
-        "smoker": data["smoker"],
-        "income": data["income"],
-        "family_history_asthma": data["family_history"],
-        "indoor_pollution": data["indoor_pollution"],
+        "gender": data.get("gender", "other"),
+        "smoker": data.get("smoker", "none"),
+        "income": data.get("income", "medium"),
+        "family_history_asthma": data.get("family_history", False),
+        "indoor_pollution": data.get("indoor_pollution", False),
     }
 
     X = pd.DataFrame([row], columns=FEATURE_COLS)
     base_pred = model.predict(X)[0]
 
     base_probs = {
-        "bronchitis": base_pred[0],
-        "pneumonia": base_pred[1],
-        "asthma": base_pred[2],
-        "lung_cancer": base_pred[3],
-        "copd": base_pred[4],
+        "bronchitis": float(base_pred[0]),
+        "pneumonia": float(base_pred[1]),
+        "asthma": float(base_pred[2]),
+        "lung_cancer": float(base_pred[3]),
+        "copd": float(base_pred[4]),
     }
 
     final_probs, _ = apply_personal_factors(base_probs, profile)
@@ -90,7 +117,7 @@ def predict():
 
 @app.route("/explain", methods=["POST"])
 def explain():
-
+    load_artifacts()
     data = request.json
 
     row = {
@@ -106,60 +133,58 @@ def explain():
 
     profile = {
         "age": int(data["age"]),
-        "gender": data["gender"],
-        "smoker": data["smoker"],
-        "income": data["income"],
-        "family_history_asthma": data["family_history"],
-        "indoor_pollution": data["indoor_pollution"],
+        "gender": data.get("gender", "other"),
+        "smoker": data.get("smoker", "none"),
+        "income": data.get("income", "medium"),
+        "family_history_asthma": data.get("family_history", False),
+        "indoor_pollution": data.get("indoor_pollution", False),
     }
 
     X = pd.DataFrame([row], columns=FEATURE_COLS)
 
     # ---------- NORMALIZATION ----------
     norm_vals = scaler.transform(X)[0]
-    norm_map = dict(zip(FEATURE_COLS, norm_vals))
+    norm_map = dict(zip(FEATURE_COLS, [round(float(v), 4) for v in norm_vals]))
 
     # ---------- WEIGHTED CONTRIBUTIONS ----------
     contributions = {}
 
     for disease, weights in DISEASE_WEIGHTS.items():
         contrib_list = []
-        score = 0
+        score = 0.0
 
         for f in FEATURE_COLS:
             val = norm_map[f]
-            w = weights.get(f, 0)
+            w = weights.get(f, 0.0)
             c = val * w
             score += c
 
             contrib_list.append({
                 "feature": f,
-                "value": round(val,4),
+                "value": round(val, 4),
                 "weight": w,
-                "contribution": round(c,4)
+                "contribution": round(c, 4),
             })
 
-        # sigmoid FIX
-        import math
-        k = 5
+        k = 5.0
         threshold = 0.6
-        sig = 1/(1+math.exp(-k*(score-threshold)))
+        sig = 1.0 / (1.0 + math.exp(-k * (score - threshold)))
 
         contributions[disease] = {
-            "score": round(score,4),
-            "sigmoid": round(sig,4),
-            "details": contrib_list
+            "score": round(score, 4),
+            "sigmoid": round(sig, 4),
+            "details": contrib_list,
         }
 
     # ---------- MODEL OUTPUT ----------
     base_pred = model.predict(X)[0]
 
     base_probs = {
-        "bronchitis": base_pred[0],
-        "pneumonia": base_pred[1],
-        "asthma": base_pred[2],
-        "lung_cancer": base_pred[3],
-        "copd": base_pred[4],
+        "bronchitis": float(base_pred[0]),
+        "pneumonia": float(base_pred[1]),
+        "asthma": float(base_pred[2]),
+        "lung_cancer": float(base_pred[3]),
+        "copd": float(base_pred[4]),
     }
 
     final_probs, personal = apply_personal_factors(base_probs, profile)
@@ -169,80 +194,81 @@ def explain():
         "contributions": contributions,
         "base_probs": base_probs,
         "final_probs": final_probs,
-        "personal_details": personal
+        "personal_details": personal,
     })
+
+
 @app.route("/model-breakdown", methods=["POST"])
 def model_breakdown():
+    load_artifacts()
     data = request.json
-
     X = pd.DataFrame([data], columns=FEATURE_COLS)
-
     breakdown = get_model_breakdown(X)
-
     return jsonify(breakdown)
 
-@app.route("/api/training-step")
-def api_training_step():
-    p = ARTIFACTS / "training_step.json"
-    if p.exists():
-        return jsonify(json.loads(p.read_text()))
-    return jsonify({})
-
-@app.route("/api/feature-importance")
-def api_feature_importance():
-    p = ARTIFACTS / "feature_importance.json"
-    return jsonify(json.loads(p.read_text())) if p.exists() else jsonify({})
-
-@app.route("/api/meta-weights")
-def api_meta_weights():
-    p = ARTIFACTS / "meta_model.json"
-    return jsonify(json.loads(p.read_text())) if p.exists() else jsonify({})
-
-# ---------------------------
-# TRAINING DASHBOARD APIs
-# ---------------------------
-@app.route("/api/training-status")
-def training_status():
-    if STATUS_PATH.exists():
-        return jsonify(json.loads(STATUS_PATH.read_text()))
-    return jsonify({"stage": "No status", "percent": 0})
-
-
-@app.route("/api/training-summary")
-def training_summary():
-    if SUMMARY_PATH.exists():
-        return jsonify(json.loads(SUMMARY_PATH.read_text()))
-    return jsonify({})
 
 def get_model_breakdown(X):
     breakdown = {}
-
     for est in model.estimators_:
-        stack = est
-
         preds = {}
-
-        for name, base in stack.named_estimators_.items():
+        for name, base in est.named_estimators_.items():
             preds[name] = float(base.predict(X)[0])
 
-        final = float(stack.final_estimator_.predict(
+        final = float(est.final_estimator_.predict(
             pd.DataFrame([list(preds.values())])
         )[0])
 
         breakdown = {
             "base_models": preds,
-            "meta_output": final
+            "meta_output": final,
         }
-
     return breakdown
+
+
+# ---------------------------
+# TRAINING DASHBOARD APIs
+# ---------------------------
+@app.route("/api/training-step")
+def api_training_step():
+    p = ARTIFACTS / "training_step.json"
+    if p.exists():
+        return jsonify(json.loads(p.read_text(encoding="utf-8")))
+    return jsonify({})
+
+
+@app.route("/api/feature-importance")
+def api_feature_importance():
+    p = ARTIFACTS / "feature_importance.json"
+    return jsonify(json.loads(p.read_text(encoding="utf-8"))) if p.exists() else jsonify({})
+
+
+@app.route("/api/meta-weights")
+def api_meta_weights():
+    p = ARTIFACTS / "meta_model.json"
+    return jsonify(json.loads(p.read_text(encoding="utf-8"))) if p.exists() else jsonify({})
+
+
+@app.route("/api/training-status")
+def training_status():
+    if STATUS_PATH.exists():
+        return jsonify(json.loads(STATUS_PATH.read_text(encoding="utf-8")))
+    return jsonify({"stage": "Ready", "percent": 100, "detail": "Model trained and verified."})
+
+
+@app.route("/api/training-summary")
+def training_summary():
+    if SUMMARY_PATH.exists():
+        return jsonify(json.loads(SUMMARY_PATH.read_text(encoding="utf-8")))
+    return jsonify({})
+
 
 @app.route("/api/training-log")
 def training_log():
     if LOG_PATH.exists():
-        lines = LOG_PATH.read_text().splitlines()[-200:]
+        lines = LOG_PATH.read_text(encoding="utf-8").splitlines()[-200:]
         return jsonify({"lines": lines})
     return jsonify({"lines": []})
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

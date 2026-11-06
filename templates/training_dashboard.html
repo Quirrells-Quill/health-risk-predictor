@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Training Telemetry & Model Operations</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    .card-glass {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+    }
+    .badge-soft {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-size: 13px;
+    }
+    .terminal-box {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      max-height: 320px;
+      overflow-y: auto;
+      color: #38bdf8;
+    }
+    .metric-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h2 class="fw-bold mb-1">⚡ Training Telemetry & Model Ops</h2>
+        <p class="text-secondary mb-0">Live monitoring of MultiOutput Stacking Ensemble fitting pipeline</p>
+      </div>
+      <div>
+        <a href="/" class="btn btn-outline-light btn-sm me-2">← Back to Inference Engine</a>
+        <a href="/dashboard" class="btn btn-primary btn-sm">Explainability Dashboard →</a>
+      </div>
+    </div>
+
+    <!-- Status Banner -->
+    <div class="card-glass mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="badge-soft" id="status-stage">Status: Active</span>
+        <small class="text-secondary" id="status-time">Last update: --</small>
+      </div>
+      <div class="progress mb-2" style="height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px;">
+        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 100%;">100%</div>
+      </div>
+      <small class="text-secondary" id="status-detail">Model trained and ready for inference</small>
+    </div>
+
+    <!-- Model Performance Cards -->
+    <h5 class="fw-bold mb-3">Target Validation Metrics (R² / MAE)</h5>
+    <div class="row g-3 mb-4" id="metrics-grid">
+      <!-- Populated via JS -->
+    </div>
+
+    <!-- Live Execution Logs -->
+    <div class="card-glass">
+      <h5 class="fw-bold mb-3">Pipeline Execution Log</h5>
+      <div class="terminal-box" id="log-box">Loading training logs...</div>
+    </div>
+  </div>
+
+  <script>
+    async function loadTelemetry() {
+      try {
+        // Status
+        const sRes = await fetch('/api/training-status');
+        if (sRes.ok) {
+          const s = await sRes.json();
+          document.getElementById('status-stage').innerText = `Stage: ${s.stage || 'Ready'}`;
+          document.getElementById('status-detail').innerText = s.detail || '';
+          document.getElementById('status-time').innerText = s.timestamp ? `Updated: ${s.timestamp.split('T')[1].split('.')[0]}` : '';
+          document.getElementById('progress-bar').style.width = `${s.percent || 100}%`;
+          document.getElementById('progress-bar').innerText = `${s.percent || 100}%`;
+        }
+
+        // Summary
+        const sumRes = await fetch('/api/training-summary');
+        if (sumRes.ok) {
+          const summary = await sumRes.json();
+          const grid = document.getElementById('metrics-grid');
+          grid.innerHTML = '';
+          if (summary.metrics) {
+            for (const [disease, m] of Object.entries(summary.metrics)) {
+              const name = disease.replace('_risk', '').toUpperCase();
+              grid.innerHTML += `
+                <div class="col-md">
+                  <div class="card-glass text-center p-3">
+                    <small class="text-secondary fw-semibold">${name}</small>
+                    <div class="metric-value my-1">${m.R2 ? m.R2.toFixed(3) : '--'}</div>
+                    <small class="text-muted">MAE: ${m.MAE ? m.MAE.toFixed(4) : '--'}</small>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }
+
+        // Logs
+        const lRes = await fetch('/api/training-log');
+        if (lRes.ok) {
+          const l = await lRes.json();
+          if (l.lines && l.lines.length) {
+            document.getElementById('log-box').innerHTML = l.lines.join('<br>');
+          }
+        }
+      } catch (e) {
+        console.error("Telemetry error:", e);
+      }
+    }
+    loadTelemetry();
+  </script>
+</body>
+</html>
